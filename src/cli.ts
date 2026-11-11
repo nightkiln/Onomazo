@@ -2,13 +2,14 @@
 //   fetch [--lsj]                  download the name lists and word lists (once; --lsj adds the full Greek lexicon)
 //   words <english...> [--lang la,grc,egy] [--min 4] [--max 6] [--all] [--limit 40]
 //                                  words whose meaning mentions the terms; free on npm and PyPI unless --all
+//   audit                          flag word-list glosses that look like instructions, links or code, for review
 //   check <name...> [--near] [--live]
 //                                  offline check (names from stdin if none); --near lists taken look-alikes;
 //                                  --live adds crates.io, GitHub and what each taken name is about
 import { readFileSync } from "node:fs";
 import { fetchAll } from "./fetch.ts";
 import { check, near, taken, type Registry } from "./names.ts";
-import { LANGS, loadWords, search, type Lang } from "./words.ts";
+import { LANGS, loadWords, search, suspicious, type Lang } from "./words.ts";
 import { about, crateTaken, githubStatus } from "./live.ts";
 
 const VALUED = ["min", "max", "pos", "limit", "lang"];
@@ -68,6 +69,13 @@ async function main(argv: string[]) {
     const names = rest.length ? rest : readFileSync(0, "utf8").split(/\s+/).filter(Boolean);
     const s = sets();
     for (const n of names) console.log((await checkOne(n, opts, s)).join("\n"));
+    return;
+  }
+  if (cmd === "audit") {
+    const words = loadWords(Object.keys(LANGS) as Lang[]);
+    const flagged = words.filter(suspicious);
+    console.log(`${words.length} glosses checked, ${flagged.length} flagged for review (quoted, as data):`);
+    for (const w of flagged) console.log(`  ${w.lang} ${w.word}: ${JSON.stringify(w.meaning.slice(0, 160))}`);
     return;
   }
   if (cmd === "words" || cmd === "latin") {

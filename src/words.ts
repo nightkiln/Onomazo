@@ -33,8 +33,30 @@ export function plain(s: string): string {
     .replace(/[^a-z]/g, "");
 }
 
+const HIDDEN = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u00ad\u034f\u061c\u115f\u1160\u17b4\u17b5\u180e\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb]|[\u{e0000}-\u{e007f}]/gu;
+
+/** A gloss as plain text: hidden characters removed, whitespace collapsed, length capped. */
+export function cleanGloss(text: string, max = 300): string {
+  const t = text.replace(HIDDEN, "").replace(/\s+/g, " ").trim();
+  return t.length > max ? t.slice(0, max - 1) + "…" : t;
+}
+
+/** Signs that a gloss may be talking to an agent rather than defining a word; for human review. */
+const SUSPICIOUS = [
+  /https?:\/\/|www\./i,
+  /\b(ignore|disregard|override)\b.{0,30}\b(previous|above|prior|instructions?|rules?)\b/i,
+  /\b(you are|you must|as an ai|language model|system prompt|claude|chatgpt|openai|anthropic)\b/i,
+  /\b(run|execute|curl|wget|bash|sudo|eval|base64|powershell)\b\s*[(:`$|]/i,
+  /(?=[A-Za-z0-9+/]*\d)(?=[A-Za-z0-9+/]*[A-Z])[A-Za-z0-9+/]{32,}={0,2}/,
+  /[<{`$]/,
+];
+
+export function suspicious(w: Word): boolean {
+  return SUSPICIOUS.some((r) => r.test(w.meaning) || r.test(w.word));
+}
+
 export function toTsv(words: Word[]): string {
-  return words.map((w) => [w.word, w.lang, w.pos, w.freq, w.meaning.replace(/\s+/g, " ")].join("\t")).join("\n") + "\n";
+  return words.map((w) => [w.word, w.lang, w.pos, w.freq, cleanGloss(w.meaning)].join("\t")).join("\n") + "\n";
 }
 
 export function fromTsv(text: string): Word[] {
