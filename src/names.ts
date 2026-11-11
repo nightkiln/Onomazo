@@ -41,11 +41,14 @@ export function taken(registry: Registry): Taken {
   return map;
 }
 
-/** Raw registry names to a sorted list with one name per key. Scoped npm names are skipped. */
+/** Registry names use only these characters; anything else is dropped, never shown. */
+const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,213}$/;
+
+/** Raw registry names to a sorted list with one name per key. Scoped npm names and malformed names are skipped. */
 export function compact(names: Iterable<string>): string[] {
   const out = new Map<string, string>();
   for (const n of names) {
-    if (!n || n.startsWith("@")) continue;
+    if (typeof n !== "string" || !NAME.test(n)) continue;
     const k = key(n);
     if (!out.has(k)) out.set(k, n);
   }

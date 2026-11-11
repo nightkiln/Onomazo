@@ -5,7 +5,6 @@
   "scripts": {
     "fetch": "bun src/cli.ts fetch",
     "check": "bun src/cli.ts check",
-    "words": "bun src/cli.ts words",
     "test": "bun test tests",
     "typecheck": "tsc -p ."
   },
