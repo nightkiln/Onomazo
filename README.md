@@ -44,6 +44,12 @@ No packages.
 
 ## Sources and licences
 
+The Latin and Greek lists come from small third-party repositories. They
+are pinned to a reviewed commit, Whitaker's and Strong's also to a SHA-256,
+and are only parsed as data, never run. The npm and PyPI lists change daily,
+so they cannot be hashed; they come from the official registries and are
+used only as plain name strings.
+
 | List | Source | Licence |
 |---|---|---|
 | npm names | npm package `all-the-package-names` | MIT |

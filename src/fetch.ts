@@ -1,5 +1,6 @@
 // Downloads the lists once (about 65 MB, seconds). `fetch --lsj` adds the full Greek lexicon (about 280 MB).
 import { mkdirSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { gunzipSync } from "node:zlib";
 import { dataDir, listPath, compact } from "./names.ts";
 import { parseDictline } from "./latin.ts";
@@ -8,10 +9,28 @@ import { toTsv, wordFile, type Word } from "./words.ts";
 
 const NPM_META = "https://registry.npmjs.org/all-the-package-names/latest";
 const PYPI_INDEX = "https://pypi.org/simple/";
-const WHITAKER = "https://raw.githubusercontent.com/mk270/whitakers-words/master/DICTLINE.GEN";
-const STRONGS = "https://raw.githubusercontent.com/morphgnt/strongs-dictionary-xml/master/strongsgreek.xml";
+// Word lists come from small third-party repositories, so they are pinned to a
+// reviewed commit and, where practical, a SHA-256: a later upstream change
+// cannot slip in unnoticed. They are only ever parsed as data, never run.
+// To update: review the new commit, then change the commit and hash here.
+const WHITAKER = {
+  url: "https://raw.githubusercontent.com/mk270/whitakers-words/fb7fb6f04c0c05b68d496a521d8c32abe823e57b/DICTLINE.GEN",
+  sha256: "8f6c0fc84d12859abc863eac84ddd49b7e039503855ca34c1d44a6e78abf7569",
+};
+const STRONGS = {
+  url: "https://raw.githubusercontent.com/morphgnt/strongs-dictionary-xml/dd6758b82f46b620804a8ea677d715844679eea1/strongsgreek.xml",
+  sha256: "91474213b208a4e487d35f85c10e5c90737acc69082dad15dec5431406003545",
+};
 const LSJ = (i: number) =>
-  `https://raw.githubusercontent.com/PerseusDL/lexica/master/CTS_XML_TEI/perseus/pdllex/grc/lsj/grc.lsj.perseus-eng${i}.xml`;
+  `https://raw.githubusercontent.com/PerseusDL/lexica/1c34cdf756c63cf37db61bd366d733431dbd7aa0/CTS_XML_TEI/perseus/pdllex/grc/lsj/grc.lsj.perseus-eng${i}.xml`;
+
+/** Downloads text and refuses it if its SHA-256 differs from the pinned one. */
+export async function getPinned(src: { url: string; sha256: string }): Promise<string> {
+  const bytes = new Uint8Array(await (await get(src.url)).arrayBuffer());
+  const actual = createHash("sha256").update(bytes).digest("hex");
+  if (actual !== src.sha256) throw new Error(`${src.url}: SHA-256 ${actual} does not match pinned ${src.sha256}; not used.`);
+  return new TextDecoder().decode(bytes);
+}
 
 async function get(url: string, headers: Record<string, string> = {}): Promise<Response> {
   const res = await fetch(url, { headers: { "user-agent": "onomazo", ...headers } });
@@ -51,13 +70,13 @@ async function fetchPypi(): Promise<number> {
 }
 
 async function fetchLatin(): Promise<number> {
-  const words = parseDictline(await (await get(WHITAKER)).text());
+  const words = parseDictline(await getPinned(WHITAKER));
   writeFileSync(wordFile("la"), toTsv(words));
   return words.length;
 }
 
 async function fetchGreek(lsj: boolean): Promise<number> {
-  const words: Word[] = parseStrongs(await (await get(STRONGS)).text());
+  const words: Word[] = parseStrongs(await getPinned(STRONGS));
   if (lsj) {
     const parts = await Promise.all(Array.from({ length: 27 }, (_, i) => get(LSJ(i + 1)).then((r) => r.text())));
     for (const xml of parts) words.push(...parseLsj(xml));
