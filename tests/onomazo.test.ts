@@ -4,7 +4,7 @@ import { lemma, parseDictline } from "../src/latin.ts";
 import { betaToLatin, parseLsj, parseStrongs } from "../src/greek.ts";
 import { fromTsv, plain, search, toTsv, wordFile, type Word } from "../src/words.ts";
 import { untarFile } from "../src/fetch.ts";
-import { cratePath } from "../src/live.ts";
+import { cratePath, untrusted } from "../src/live.ts";
 import { existsSync, readFileSync } from "node:fs";
 
 test("key ignores case and punctuation, like npm and PyPI collisions", () => {
@@ -111,4 +111,12 @@ test("untarFile finds a file by name", () => {
   body.set(enc.encode('["a","b'), 0);
   const tar = new Uint8Array([...header, ...body, ...new Uint8Array(1024)]);
   expect(new TextDecoder().decode(untarFile(tar, "names.json"))).toBe('["a","b');
+});
+
+test("untrusted strips hidden characters, cuts long text and quotes it", () => {
+  expect(untrusted("a\u202eb\u200bc\n\nd")).toBe('"a b c d"');
+  expect(untrusted("say \"hi\"")).toBe(`"say 'hi'"`);
+  expect(untrusted("x".repeat(200), 10)).toBe(`"${"x".repeat(9)}…"`);
+  expect(untrusted("tag\u{e0041}\u{e0042}")).toBe('"tag"');
+  expect(untrusted("  ")).toBe("");
 });

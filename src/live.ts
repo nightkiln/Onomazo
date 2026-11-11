@@ -2,6 +2,23 @@
 
 const UA = { "user-agent": "onomazo (name checker)" };
 
+/**
+ * Text from registries and GitHub is written by strangers and read by agents,
+ * so it may carry injected instructions. Strip control, zero-width and
+ * direction-changing characters, collapse whitespace, cut it short and quote
+ * it, so it reads as data.
+ */
+export function untrusted(text: string, max = 140): string {
+  const clean = text
+    .replace(/[\u0000-\u001f\u007f-\u009f\u00ad\u034f\u061c\u115f\u1160\u17b4\u17b5\u180e\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb]/g, " ")
+    .replace(/[\u{e0000}-\u{e007f}]/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!clean) return "";
+  const cut = clean.length > max ? clean.slice(0, max - 1) + "…" : clean;
+  return `"${cut.replace(/"/g, "'")}"`;
+}
+
 /** crates.io sparse index path: 1/a, 2/ab, 3/a/abc, ab/cd/abcd... */
 export function cratePath(name: string): string {
   const n = name.toLowerCase();
@@ -40,7 +57,7 @@ export async function githubStatus(name: string): Promise<GithubStatus> {
   const body = (await res.json()) as { items: { name: string; full_name: string; stargazers_count: number; description: string | null }[] };
   const exact = body.items.filter((r) => r.name.toLowerCase() === n);
   const top = exact[0];
-  return { account: user.status === 200, repos: exact.length, topRepo: top?.full_name, topStars: top?.stargazers_count, topAbout: top?.description ?? undefined };
+  return { account: user.status === 200, repos: exact.length, topRepo: top?.full_name, topStars: top?.stargazers_count, topAbout: top?.description ? untrusted(top.description) : undefined };
 }
 
 /** One line on what a registered package is, so an agent can judge whether it sits in the same field. */
@@ -50,12 +67,12 @@ export async function about(registry: "npm" | "pypi", name: string): Promise<str
       const res = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}/latest`, { headers: UA });
       if (!res.ok) return "";
       const j = (await res.json()) as { description?: string; version?: string };
-      return [j.description ?? "", j.version && `v${j.version}`].filter(Boolean).join(" ");
+      return [untrusted(j.description ?? ""), j.version && untrusted(`v${j.version}`, 30)].filter(Boolean).join(" ");
     }
     const res = await fetch(`https://pypi.org/pypi/${encodeURIComponent(name)}/json`, { headers: UA });
     if (!res.ok) return "";
     const j = (await res.json()) as { info: { summary?: string; version?: string } };
-    return [j.info.summary ?? "", j.info.version && `v${j.info.version}`].filter(Boolean).join(" ");
+    return [untrusted(j.info.summary ?? ""), j.info.version && untrusted(`v${j.info.version}`, 30)].filter(Boolean).join(" ");
   } catch {
     return "";
   }
