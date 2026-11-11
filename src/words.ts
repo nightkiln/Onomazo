@@ -51,8 +51,17 @@ const SUSPICIOUS = [
   /[<{`$]/,
 ];
 
+/**
+ * Allowlist: a gloss may only use plain ASCII plus the few typographic
+ * characters the dictionaries really use (æ, œ, …). Any other script
+ * (Cyrillic, CJK, Arabic, look-alike letters, emoji) is flagged, whatever it
+ * says, because a pattern list cannot know every language.
+ */
+const ALLOWED = /^[\x20-\x7e\u00e6\u00c6\u0153\u0152\u2026]*$/;
+
 export function suspicious(w: Word): boolean {
-  return SUSPICIOUS.some((r) => r.test(w.meaning) || r.test(w.word));
+  if (!/^[a-z]+$/.test(w.word) || !ALLOWED.test(w.meaning)) return true;
+  return SUSPICIOUS.some((r) => r.test(w.meaning));
 }
 
 export function toTsv(words: Word[]): string {
